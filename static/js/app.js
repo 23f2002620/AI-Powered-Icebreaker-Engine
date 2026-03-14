@@ -1,0 +1,187 @@
+/* Icebreaker Engine — app.js */
+const state = { profileA: null, profileB: null, allProfiles: [], lastIcebreakers: null };
+
+const selectA       = document.getElementById('select-a');
+const selectB       = document.getElementById('select-b');
+const badgeA        = document.getElementById('badge-a');
+const badgeB        = document.getElementById('badge-b');
+const btnGenerate   = document.getElementById('btn-generate');
+const btnRegen      = document.getElementById('btn-regen');
+const btnCopyAll    = document.getElementById('btn-copy-all');
+const swapBtn       = document.getElementById('swap-btn');
+const outputSection = document.getElementById('output-section');
+const matchBanner   = document.getElementById('match-banner');
+const ibGrid        = document.getElementById('ib-grid');
+const loadingEl     = document.getElementById('loading');
+const toastEl       = document.getElementById('toast');
+const healthDot     = document.getElementById('health-dot');
+const healthLabel   = document.getElementById('health-label');
+
+/* utils */
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escAttr(s) { return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function toast(msg) {
+  toastEl.textContent = msg; toastEl.classList.add('show');
+  setTimeout(() => toastEl.classList.remove('show'), 2400);
+}
+function loading(on) { loadingEl.style.display = on ? 'flex' : 'none'; }
+function calcAge(bd) {
+  if (!bd) return null;
+  return Math.floor((Date.now() - new Date(bd)) / (365.25*24*3600*1000));
+}
+function profileMeta(p) {
+  const parts = [];
+  if (p.birth_date) { const a = calcAge(p.birth_date); if (a) parts.push(a + 'y'); }
+  if (p.city)   parts.push(p.city);
+  if (p.gender) parts.push(p.gender);
+  return parts.join(' · ');
+}
+function initials(n) {
+  if (!n) return '?';
+  return n.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
+}
+
+/* health */
+async function checkHealth() {
+  try {
+    const d = await fetch('/api/health').then(r => r.json());
+    if (d.status === 'ok') { healthDot.className = 'hdot ok'; healthLabel.textContent = 'Backend online'; }
+  } catch { healthDot.className = 'hdot err'; healthLabel.textContent = 'Backend offline'; }
+}
+
+/* load profiles into both <select> elements */
+async function loadProfiles() {
+  try {
+    const d = await fetch('/api/profiles?per_page=200').then(r => r.json());
+    if (!d.success) throw new Error(d.error);
+    state.allProfiles = d.profiles;
+
+    [selectA, selectB].forEach(sel => {
+      sel.innerHTML = '<option value="">— Select a profile —</option>';
+      d.profiles.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        const m = profileMeta(p);
+        opt.textContent = (p.display_name || 'Unnamed') + (m ? '  (' + m + ')' : '');
+        sel.appendChild(opt);
+      });
+    });
+  } catch (e) {
+    [selectA, selectB].forEach(s => {
+      s.innerHTML = '<option value="">— Failed to load profiles —</option>';
+    });
+    console.error('loadProfiles error:', e);
+  }
+}
+
+/* handle dropdown selection */
+function onSelect(role) {
+  const sel   = role === 'a' ? selectA : selectB;
+  const badge = role === 'a' ? badgeA  : badgeB;
+  const avCls = role === 'a' ? 's'     : 'r';
+  const id    = sel.value;
+
+  if (!id) {
+    if (role === 'a') state.profileA = null; else state.profileB = null;
+    badge.innerHTML = '<p class="badge-empty">No profile selected</p>';
+    updateBtn(); return;
+  }
+
+  const p = state.allProfiles.find(x => x.id === id);
+  if (!p) return;
+  if (role === 'a') state.profileA = p; else state.profileB = p;
+
+  const m = profileMeta(p);
+  badge.innerHTML =
+    '<div class="badge">' +
+      '<div class="badge-av ' + avCls + '">' + esc(initials(p.display_name)) + '</div>' +
+      '<div>' +
+        '<div class="badge-name">' + esc(p.display_name || 'Unnamed') + '</div>' +
+        (m ? '<div class="badge-meta">' + esc(m) + '</div>' : '') +
+      '</div>' +
+    '</div>';
+  updateBtn();
+}
+
+selectA.addEventListener('change', () => onSelect('a'));
+selectB.addEventListener('change', () => onSelect('b'));
+
+function updateBtn() {
+  btnGenerate.disabled = !(state.profileA && state.profileB && state.profileA.id !== state.profileB.id);
+}
+
+/* swap */
+swapBtn.addEventListener('click', () => {
+  [state.profileA, state.profileB] = [state.profileB, state.profileA];
+  selectA.value = state.profileA ? state.profileA.id : '';
+  selectB.value = state.profileB ? state.profileB.id : '';
+  onSelect('a'); onSelect('b');
+});
+
+/* generate */
+async function generate() {
+  if (!state.profileA || !state.profileB) return;
+  loading(true);
+  try {
+    const res = await fetch('/api/icebreakers/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile_a_id: state.profileA.id, profile_b_id: state.profileB.id }),
+    });
+    const d = await res.json();
+    if (!d.success) { toast('Error: ' + (d.error || 'Unknown')); return; }
+    state.lastIcebreakers = d.icebreakers;
+    renderOutput(d);
+    outputSection.style.display = 'block';
+    outputSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (e) { toast('Network error. Check backend.'); console.error(e); }
+  finally { loading(false); }
+}
+
+btnGenerate.addEventListener('click', generate);
+btnRegen.addEventListener('click', generate);
+
+/* render icebreaker cards */
+const IB_META = {
+  question:    { label: 'Question',    icon: '🤔' },
+  observation: { label: 'Observation', icon: '👁'  },
+  fun_fact:    { label: 'Fun Fact',    icon: '✨' },
+};
+
+function renderOutput(d) {
+  const na = d.profile_a ? d.profile_a.name : 'Sender';
+  const nb = d.profile_b ? d.profile_b.name : 'Recipient';
+  const ts = d.icebreakers && d.icebreakers.generated_at
+    ? new Date(d.icebreakers.generated_at).toLocaleTimeString() : '';
+  matchBanner.textContent = na + '  →  ' + nb + (ts ? '  ·  ' + ts : '');
+
+  ibGrid.innerHTML = '';
+  ['question', 'observation', 'fun_fact'].forEach(key => {
+    const text = d.icebreakers[key] || '';
+    const meta = IB_META[key];
+    const card = document.createElement('div');
+    card.className = 'ib-card';
+    card.innerHTML =
+      '<div class="ib-badge ' + key + '">' + meta.icon + ' ' + meta.label + '</div>' +
+      '<p class="ib-text">' + esc(text) + '</p>' +
+      '<button class="ib-copy" data-t="' + escAttr(text) + '">Copy</button>';
+    card.querySelector('.ib-copy').addEventListener('click', function () {
+      navigator.clipboard.writeText(this.dataset.t).then(() => {
+        this.textContent = 'Copied ✓'; this.classList.add('copied');
+        setTimeout(() => { this.textContent = 'Copy'; this.classList.remove('copied'); }, 1800);
+      });
+    });
+    ibGrid.appendChild(card);
+  });
+}
+
+btnCopyAll.addEventListener('click', () => {
+  if (!state.lastIcebreakers) return;
+  const { question, observation, fun_fact } = state.lastIcebreakers;
+  navigator.clipboard.writeText(
+    'Question:\n' + question + '\n\nObservation:\n' + observation + '\n\nFun Fact:\n' + fun_fact
+  ).then(() => toast('All icebreakers copied!'));
+});
+
+/* init */
+(async () => { await Promise.all([checkHealth(), loadProfiles()]); })();

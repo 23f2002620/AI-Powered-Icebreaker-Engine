@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Icebreaker Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo"><span class="logo-icon">✦</span><span class="logo-text">Icebreaker Engine</span></div>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="section">
+      <div class="section-label">Step 1</div>
+      <h2 class="section-title">Select Profiles</h2>
+      <p class="section-sub">Pick a sender and a recipient from the dropdowns below.</p>
+
+      <div class="selector-grid">
+        <!-- Sender -->
+        <div class="profile-card">
+          <div class="card-role sender">Sender</div>
+          <label class="select-label" for="select-a">Sender profile</label>
+          <div class="select-wrap">
+            <select id="select-a" class="profile-select">
+              <option value="">— Loading profiles… —</option>
+            </select>
+            <span class="chevron">▾</span>
+          </div>
+          <div id="badge-a" class="badge-area"><p class="badge-empty">No profile selected</p></div>
+        </div>
+
+        <!-- Swap -->
+        <div class="arrow-col">
+          <button id="swap-btn" class="swap-btn" title="Swap">⇄</button>
+        </div>
+
+        <!-- Recipient -->
+        <div class="profile-card">
+          <div class="card-role recipient">Recipient</div>
+          <label class="select-label" for="select-b">Recipient profile</label>
+          <div class="select-wrap">
+            <select id="select-b" class="profile-select">
+              <option value="">— Loading profiles… —</option>
+            </select>
+            <span class="chevron">▾</span>
+          </div>
+          <div id="badge-b" class="badge-area"><p class="badge-empty">No profile selected</p></div>
+        </div>
+      </div>
+
+      <div class="generate-row">
+        <button id="btn-generate" class="btn-generate" disabled>
+          <span>✦</span> Generate Icebreakers
+        </button>
+      </div>
+    </section>
+
+    <section class="section" id="output-section" style="display:none">
+      <div class="section-label">Step 2</div>
+      <h2 class="section-title">Generated Icebreakers</h2>
+      <div id="match-banner" class="match-banner"></div>
+      <div id="ib-grid" class="ib-grid"></div>
+      <div class="regen-row">
+        <button id="btn-regen" class="btn-secondary">↻ Regenerate</button>
+        <button id="btn-copy-all" class="btn-secondary">⎘ Copy All</button>
+      </div>
+    </section>
+
+    <div id="loading" class="loading-overlay" style="display:none">
+      <div class="spinner-wrap"><div class="spinner"></div><p>Crafting icebreakers…</p></div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <span>Icebreaker Engine</span><span>·</span>
+    <span id="health-dot" class="hdot">●</span>
+    <span id="health-label">Checking…</span>
+  </footer>
+
+  <div id="toast" class="toast"></div>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
