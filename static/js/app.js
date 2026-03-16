@@ -1,6 +1,13 @@
-/* Icebreaker Engine — app.js */
-const state = { profileA: null, profileB: null, allProfiles: [], lastIcebreakers: null };
+/* Icebreaker Engine — app.js (with Magic Wand) */
 
+const state = {
+  profileA: null,
+  profileB: null,
+  allProfiles: [],
+  lastIcebreakers: null,
+};
+
+/* ── DOM refs ── */
 const selectA       = document.getElementById('select-a');
 const selectB       = document.getElementById('select-b');
 const badgeA        = document.getElementById('badge-a');
@@ -10,6 +17,7 @@ const btnRegen      = document.getElementById('btn-regen');
 const btnCopyAll    = document.getElementById('btn-copy-all');
 const swapBtn       = document.getElementById('swap-btn');
 const outputSection = document.getElementById('output-section');
+const chatSection   = document.getElementById('chat-section');
 const matchBanner   = document.getElementById('match-banner');
 const ibGrid        = document.getElementById('ib-grid');
 const loadingEl     = document.getElementById('loading');
@@ -17,17 +25,33 @@ const toastEl       = document.getElementById('toast');
 const healthDot     = document.getElementById('health-dot');
 const healthLabel   = document.getElementById('health-label');
 
-/* utils */
-function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+/* Magic Wand refs */
+const wandBtn       = document.getElementById('wand-btn');
+const wandPopup     = document.getElementById('wand-popup');
+const wandBackdrop  = document.getElementById('wand-backdrop');
+const wandClose     = document.getElementById('wand-close');
+const wandItems     = document.getElementById('wand-items');
+const chatTextarea  = document.getElementById('chat-textarea');
+const sendBtn       = document.getElementById('send-btn');
+const chatMessages  = document.getElementById('chat-messages');
+const chatEmpty     = document.getElementById('chat-empty');
+
+/* ── Utils ── */
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 function escAttr(s) { return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function toast(msg) {
-  toastEl.textContent = msg; toastEl.classList.add('show');
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
   setTimeout(() => toastEl.classList.remove('show'), 2400);
 }
 function loading(on) { loadingEl.style.display = on ? 'flex' : 'none'; }
 function calcAge(bd) {
   if (!bd) return null;
-  return Math.floor((Date.now() - new Date(bd)) / (365.25*24*3600*1000));
+  return Math.floor((Date.now() - new Date(bd)) / (365.25 * 24 * 3600 * 1000));
 }
 function profileMeta(p) {
   const parts = [];
@@ -41,21 +65,26 @@ function initials(n) {
   return n.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
 }
 
-/* health */
+/* ── Health ── */
 async function checkHealth() {
   try {
     const d = await fetch('/api/health').then(r => r.json());
-    if (d.status === 'ok') { healthDot.className = 'hdot ok'; healthLabel.textContent = 'Backend online'; }
-  } catch { healthDot.className = 'hdot err'; healthLabel.textContent = 'Backend offline'; }
+    if (d.status === 'ok') {
+      healthDot.className = 'hdot ok';
+      healthLabel.textContent = 'Backend online';
+    }
+  } catch {
+    healthDot.className = 'hdot err';
+    healthLabel.textContent = 'Backend offline';
+  }
 }
 
-/* load profiles into both <select> elements */
+/* ── Load profiles ── */
 async function loadProfiles() {
   try {
     const d = await fetch('/api/profiles?per_page=200').then(r => r.json());
     if (!d.success) throw new Error(d.error);
     state.allProfiles = d.profiles;
-
     [selectA, selectB].forEach(sel => {
       sel.innerHTML = '<option value="">— Select a profile —</option>';
       d.profiles.forEach(p => {
@@ -74,7 +103,7 @@ async function loadProfiles() {
   }
 }
 
-/* handle dropdown selection */
+/* ── Select handlers ── */
 function onSelect(role) {
   const sel   = role === 'a' ? selectA : selectB;
   const badge = role === 'a' ? badgeA  : badgeB;
@@ -86,11 +115,9 @@ function onSelect(role) {
     badge.innerHTML = '<p class="badge-empty">No profile selected</p>';
     updateBtn(); return;
   }
-
   const p = state.allProfiles.find(x => x.id === id);
   if (!p) return;
   if (role === 'a') state.profileA = p; else state.profileB = p;
-
   const m = profileMeta(p);
   badge.innerHTML =
     '<div class="badge">' +
@@ -102,15 +129,16 @@ function onSelect(role) {
     '</div>';
   updateBtn();
 }
-
 selectA.addEventListener('change', () => onSelect('a'));
 selectB.addEventListener('change', () => onSelect('b'));
 
 function updateBtn() {
-  btnGenerate.disabled = !(state.profileA && state.profileB && state.profileA.id !== state.profileB.id);
+  btnGenerate.disabled = !(
+    state.profileA && state.profileB && state.profileA.id !== state.profileB.id
+  );
 }
 
-/* swap */
+/* ── Swap ── */
 swapBtn.addEventListener('click', () => {
   [state.profileA, state.profileB] = [state.profileB, state.profileA];
   selectA.value = state.profileA ? state.profileA.id : '';
@@ -118,7 +146,7 @@ swapBtn.addEventListener('click', () => {
   onSelect('a'); onSelect('b');
 });
 
-/* generate */
+/* ── Generate ── */
 async function generate() {
   if (!state.profileA || !state.profileB) return;
   loading(true);
@@ -126,22 +154,35 @@ async function generate() {
     const res = await fetch('/api/icebreakers/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profile_a_id: state.profileA.id, profile_b_id: state.profileB.id }),
+      body: JSON.stringify({
+        profile_a_id: state.profileA.id,
+        profile_b_id: state.profileB.id,
+      }),
     });
     const d = await res.json();
     if (!d.success) { toast('Error: ' + (d.error || 'Unknown')); return; }
+
     state.lastIcebreakers = d.icebreakers;
     renderOutput(d);
+
     outputSection.style.display = 'block';
     outputSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  } catch (e) { toast('Network error. Check backend.'); console.error(e); }
-  finally { loading(false); }
-}
 
+    /* Show chat widget + enable magic wand */
+    chatSection.style.display = 'block';
+    enableMagicWand();
+
+  } catch (e) {
+    toast('Network error. Check backend.');
+    console.error(e);
+  } finally {
+    loading(false);
+  }
+}
 btnGenerate.addEventListener('click', generate);
 btnRegen.addEventListener('click', generate);
 
-/* render icebreaker cards */
+/* ── Render output cards ── */
 const IB_META = {
   question:    { label: 'Question',    icon: '🤔' },
   observation: { label: 'Observation', icon: '👁'  },
@@ -179,9 +220,138 @@ btnCopyAll.addEventListener('click', () => {
   if (!state.lastIcebreakers) return;
   const { question, observation, fun_fact } = state.lastIcebreakers;
   navigator.clipboard.writeText(
-    'Question:\n' + question + '\n\nObservation:\n' + observation + '\n\nFun Fact:\n' + fun_fact
+    'Question:\n' + question +
+    '\n\nObservation:\n' + observation +
+    '\n\nFun Fact:\n' + fun_fact
   ).then(() => toast('All icebreakers copied!'));
 });
 
-/* init */
-(async () => { await Promise.all([checkHealth(), loadProfiles()]); })();
+/* ════════════════════════════════════════
+   MAGIC WAND
+════════════════════════════════════════ */
+
+function enableMagicWand() {
+  wandBtn.disabled = false;
+  wandBtn.classList.add('has-icebreakers');
+  buildWandItems();
+  /* Remove ping dot after 3s */
+  setTimeout(() => wandBtn.classList.remove('has-icebreakers'), 3000);
+}
+
+function buildWandItems() {
+  if (!state.lastIcebreakers) return;
+  wandItems.innerHTML = '';
+
+  const entries = [
+    { key: 'question',    icon: '🤔', label: 'Question' },
+    { key: 'observation', icon: '👁',  label: 'Observation' },
+    { key: 'fun_fact',    icon: '✨', label: 'Fun Fact' },
+  ];
+
+  entries.forEach(({ key, icon, label }) => {
+    const text = state.lastIcebreakers[key] || '';
+    if (!text) return;
+
+    const btn = document.createElement('button');
+    btn.className = 'wand-item';
+    btn.setAttribute('data-text', text);
+    btn.innerHTML =
+      '<span class="wand-item-icon">' + icon + '</span>' +
+      '<span class="wand-item-body">' +
+        '<div class="wand-item-type ' + key + '">' + label + '</div>' +
+        '<div class="wand-item-text">' + esc(text) + '</div>' +
+      '</span>' +
+      '<span class="wand-item-use">Use →</span>';
+
+    btn.addEventListener('click', () => {
+      useIcebreaker(text);
+    });
+    wandItems.appendChild(btn);
+  });
+}
+
+function openWandPopup() {
+  if (!state.lastIcebreakers) return;
+  buildWandItems();               /* refresh in case regenerated */
+  wandPopup.style.display = 'block';
+  wandBackdrop.style.display = 'block';
+  wandBtn.classList.add('active');
+  /* Focus trap: first item */
+  const first = wandItems.querySelector('.wand-item');
+  if (first) first.focus();
+}
+
+function closeWandPopup() {
+  wandPopup.style.display = 'none';
+  wandBackdrop.style.display = 'none';
+  wandBtn.classList.remove('active');
+  wandBtn.focus();
+}
+
+wandBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (wandPopup.style.display === 'none') openWandPopup();
+  else closeWandPopup();
+});
+
+wandClose.addEventListener('click', closeWandPopup);
+wandBackdrop.addEventListener('click', closeWandPopup);
+
+/* Close on Escape */
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && wandPopup.style.display !== 'none') closeWandPopup();
+});
+
+/* ── Use icebreaker: populate textarea ── */
+function useIcebreaker(text) {
+  chatTextarea.value = text;
+  autoResizeTextarea();
+  chatTextarea.focus();
+  closeWandPopup();
+  toast('Icebreaker loaded — hit Send!');
+}
+
+/* ── Send message ── */
+function sendMessage() {
+  const text = chatTextarea.value.trim();
+  if (!text) return;
+
+  /* Hide empty state */
+  chatEmpty.style.display = 'none';
+
+  /* Append bubble */
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble sent';
+  bubble.textContent = text;
+  chatMessages.appendChild(bubble);
+
+  /* Scroll to bottom */
+  const win = document.getElementById('chat-window');
+  win.scrollTop = win.scrollHeight;
+
+  /* Clear textarea */
+  chatTextarea.value = '';
+  autoResizeTextarea();
+  toast('Message sent!');
+}
+
+sendBtn.addEventListener('click', sendMessage);
+
+chatTextarea.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+/* ── Auto-resize textarea ── */
+function autoResizeTextarea() {
+  chatTextarea.style.height = 'auto';
+  chatTextarea.style.height = Math.min(chatTextarea.scrollHeight, 120) + 'px';
+}
+chatTextarea.addEventListener('input', autoResizeTextarea);
+
+/* ── Init ── */
+(async () => {
+  await Promise.all([checkHealth(), loadProfiles()]);
+})();

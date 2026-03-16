@@ -38,7 +38,7 @@ gemini_model = genai.GenerativeModel(
     model_name="gemini-3-flash-preview",
     generation_config=genai.GenerationConfig(
         temperature=0.9,
-        max_output_tokens=256,
+        max_output_tokens=2048,
     ),
 )
 
@@ -197,53 +197,85 @@ def build_profile_context(profile: dict) -> str:
     return "\n".join(lines)
 
 
-def _call_gemini_single(prompt: str) -> str:
-    """Call Gemini and return plain text response, stripped of markdown fences."""
+def _profile_bullets(profile: dict) -> str:
+    """Ultra-compact profile summary — only the juiciest details, under 300 chars."""
+    bits = []
+    if profile.get("display_name"): bits.append(profile["display_name"])
+    if profile.get("birth_date"):
+        try:
+            age = (datetime.today() - datetime.strptime(profile["birth_date"], "%Y-%m-%d")).days // 365
+            bits.append(f"{age}y")
+        except Exception:
+            pass
+    if profile.get("city"):         bits.append(profile["city"])
+    if profile.get("work_title"):   bits.append(profile["work_title"])
+    lines = [", ".join(bits)] if bits else []
+    if profile.get("mode_bio"):     lines.append(profile["mode_bio"][:150])
+    if profile.get("interests"):    lines.append("Likes: " + ", ".join(profile["interests"][:5]))
+    if profile.get("prompts"):
+        p = profile["prompts"][0]
+        lines.append(f'Q: {p["question"][:60]} A: {p["answer"][:80]}')
+    return "\n".join(lines)
+
+
+def _call_gemini(prompt: str) -> str:
+    """Call Gemini and return the full response text, handling truncation gracefully."""
     response = gemini_model.generate_content(prompt)
+
+    if not response.candidates:
+        raise ValueError("Gemini returned no candidates")
+
+    candidate = response.candidates[0]
+    finish_reason = str(candidate.finish_reason)
+    logger.info(f"Gemini finish_reason={finish_reason}")
+
     raw = response.text.strip()
+
+    # finish_reason=2 means MAX_TOKENS — response was cut off
+    # Patch the sentence to end cleanly rather than erroring out
+    if finish_reason == "2":
+        logger.warning(f"MAX_TOKENS hit — patching truncated response: {raw!r}")
+        raw = raw.rstrip(" ,;:-")
+        if raw and raw[-1] not in ".!?":
+            raw += "."
+
+    # Strip markdown fences and surrounding quotes
     raw = re.sub(r"^```(?:json)?\s*", "", raw)
     raw = re.sub(r"\s*```$", "", raw).strip()
-    # Remove any surrounding quotes Gemini might add
-    if raw.startswith('"') and raw.endswith('"'):
-        raw = raw[1:-1]
+    if len(raw) >= 2 and raw[0] == raw[-1] == '"':
+        raw = raw[1:-1].strip()
     return raw
 
 
 def generate_icebreakers(profile_a: dict, profile_b: dict) -> dict:
     """
-    Call Gemini 3 times — one call per icebreaker type — to avoid truncation.
-    Returns a dict with keys: question, observation, fun_fact, model_used, generated_at
+    Generate 3 icebreakers using 3 separate minimal Gemini calls.
+    Sends only the recipient profile to keep prompts short and output tokens free.
     """
-    context_a = build_profile_context(profile_a)
-    context_b = build_profile_context(profile_b)
+    # Only send recipient profile — that's what the icebreaker is about
+    ctx_b = _profile_bullets(profile_b)
+    name_b = profile_b.get("display_name", "them")
 
-    base = (
-        f"Person A (sender):\n{context_a}\n\n"
-        f"Person B (recipient):\n{context_b}\n\n"
-        "Rules: Write EXACTLY one sentence. Be specific — reference real details from Person B's profile. "
-        "No generic openers. No quotes around your answer. Return ONLY the sentence, nothing else."
-    )
+    def call(kind: str, instruction: str) -> str:
+        prompt = (
+            f"Dating app icebreaker — {kind}.\n"
+            f"Write one complete sentence to send to {name_b}.\n"
+            f"Profile: {ctx_b}\n"
+            f"Task: {instruction}\n"
+            "Rules: Complete sentence only. No ellipsis. No truncation. "
+            "Reference a specific profile detail. No quotes. No labels. Just the sentence."
+        )
+        return _call_gemini(prompt)
 
-    question = _call_gemini_single(
-        "You write icebreakers for a dating app. Write ONE curious, open-ended question "
-        "that Person A can send to Person B, based on something specific in Person B's profile.\n\n" + base
-    )
-
-    observation = _call_gemini_single(
-        "You write icebreakers for a dating app. Write ONE warm, genuine observation about "
-        "something interesting in Person B's profile or something they share with Person A.\n\n" + base
-    )
-
-    fun_fact = _call_gemini_single(
-        "You write icebreakers for a dating app. Write ONE playful, witty line or fun fact "
-        "tied to Person B's interests or bio that will make them smile.\n\n" + base
-    )
+    question    = call("question",    "Ask a curious, open-ended question based on their profile.")
+    observation = call("observation", "Make a warm, genuine observation about something in their profile.")
+    fun_fact    = call("fun_fact",    "Write a playful, witty line tied to their interests that makes them smile.")
 
     return {
-        "question": question,
+        "question":    question,
         "observation": observation,
-        "fun_fact": fun_fact,
-        "model_used": "gemini-2.0-flash",
+        "fun_fact":    fun_fact,
+        "model_used":  "gemini-2.0-flash",
         "generated_at": datetime.utcnow().isoformat() + "Z",
     }
 

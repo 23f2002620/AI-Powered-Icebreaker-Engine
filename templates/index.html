@@ -12,17 +12,19 @@
   <header class="header">
     <div class="header-inner">
       <div class="logo"><span class="logo-icon">✦</span><span class="logo-text">Icebreaker Engine</span></div>
+      <div class="header-meta">Admin Console</div>
     </div>
   </header>
 
   <main class="main">
+
+    <!-- Step 1: Select Profiles -->
     <section class="section">
       <div class="section-label">Step 1</div>
       <h2 class="section-title">Select Profiles</h2>
       <p class="section-sub">Pick a sender and a recipient from the dropdowns below.</p>
 
       <div class="selector-grid">
-        <!-- Sender -->
         <div class="profile-card">
           <div class="card-role sender">Sender</div>
           <label class="select-label" for="select-a">Sender profile</label>
@@ -35,12 +37,10 @@
           <div id="badge-a" class="badge-area"><p class="badge-empty">No profile selected</p></div>
         </div>
 
-        <!-- Swap -->
         <div class="arrow-col">
           <button id="swap-btn" class="swap-btn" title="Swap">⇄</button>
         </div>
 
-        <!-- Recipient -->
         <div class="profile-card">
           <div class="card-role recipient">Recipient</div>
           <label class="select-label" for="select-b">Recipient profile</label>
@@ -61,6 +61,7 @@
       </div>
     </section>
 
+    <!-- Step 2: Output cards -->
     <section class="section" id="output-section" style="display:none">
       <div class="section-label">Step 2</div>
       <h2 class="section-title">Generated Icebreakers</h2>
@@ -72,9 +73,83 @@
       </div>
     </section>
 
+    <!-- Step 3: Chat Input Widget -->
+    <section class="section" id="chat-section" style="display:none">
+      <div class="section-label">Step 3</div>
+      <h2 class="section-title">Chat Input</h2>
+      <p class="section-sub">Use the Magic Wand to pick an icebreaker and send it instantly.</p>
+
+      <!-- Simulated chat preview -->
+      <div class="chat-window" id="chat-window">
+        <div class="chat-empty-state" id="chat-empty">
+          <span class="chat-empty-icon">💬</span>
+          <p>Messages will appear here</p>
+        </div>
+        <div class="chat-messages" id="chat-messages"></div>
+      </div>
+
+      <!-- Chat Input Bar -->
+      <div class="chat-input-bar" id="chat-input-bar">
+        <div class="chat-input-wrap">
+          <textarea
+            id="chat-textarea"
+            class="chat-textarea"
+            placeholder="Type a message…"
+            rows="1"
+          ></textarea>
+
+          <!-- Magic Wand Button -->
+          <button
+            id="wand-btn"
+            class="wand-btn"
+            title="Magic Wand — pick an icebreaker"
+            disabled
+          >
+            <svg class="wand-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M15 4V2M15 16V14M8 9H10M20 9H22M17.8 11.8L19.2 10.4M17.8 6.2L19.2 7.6M12.2 6.2L10.8 7.6M12.2 11.8L10.8 10.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              <path d="M15 14C15 14 13.5 12.5 13.5 9C13.5 5.5 15 4 15 4C15 4 16.5 5.5 16.5 9C16.5 12.5 15 14 15 14Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              <path d="M3 21L13 11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+
+          <!-- Send Button -->
+          <button id="send-btn" class="send-btn" title="Send message">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Magic Wand Popup -->
+      <div id="wand-popup" class="wand-popup" style="display:none" role="dialog" aria-label="Choose an icebreaker">
+        <div class="wand-popup-header">
+          <span class="wand-popup-title">
+            <svg class="wand-icon-sm" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M15 4V2M15 16V14M8 9H10M20 9H22M17.8 11.8L19.2 10.4M17.8 6.2L19.2 7.6M12.2 6.2L10.8 7.6M12.2 11.8L10.8 10.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              <path d="M15 14C15 14 13.5 12.5 13.5 9C13.5 5.5 15 4 15 4C15 4 16.5 5.5 16.5 9C16.5 12.5 15 14 15 14Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              <path d="M3 21L13 11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Icebreaker Suggestions
+          </span>
+          <button id="wand-close" class="wand-close" title="Close">✕</button>
+        </div>
+        <p class="wand-popup-sub">Tap any icebreaker to use it</p>
+        <div class="wand-items" id="wand-items">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Popup backdrop -->
+      <div id="wand-backdrop" class="wand-backdrop" style="display:none"></div>
+    </section>
+
+    <!-- Loading overlay -->
     <div id="loading" class="loading-overlay" style="display:none">
       <div class="spinner-wrap"><div class="spinner"></div><p>Crafting icebreakers…</p></div>
     </div>
+
   </main>
 
   <footer class="footer">
